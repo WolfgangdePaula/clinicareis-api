@@ -70,6 +70,7 @@ session.headers.update(HEADERS)
 class BuscarRequest(BaseModel):
     especialidade: str
     convenio: str
+    agenda: str | None = None   # opcional: filtra por agenda específica (ex: "Teste")
 
 class ReservarRequest(BaseModel):
     agenda: str
@@ -102,16 +103,20 @@ class CancelarRequest(BaseModel):
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-def get_viewstate() -> dict:
-    """Faz GET na página para obter o ViewState e campos ASP.NET."""
-    resp = session.get(FORM_URL, timeout=15)
+def get_viewstate(agenda: str | None = None) -> tuple[dict, str]:
+    """Faz GET na página para obter o ViewState. Retorna (campos, url_usada)."""
+    url = FORM_URL
+    if agenda:
+        url = f"{url}&agenda={agenda}"
+    resp = session.get(url, timeout=15)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "lxml")
-    return {
+    fields = {
         "__VIEWSTATE":          soup.find("input", {"name": "__VIEWSTATE"})["value"],
         "__VIEWSTATEGENERATOR": soup.find("input", {"name": "__VIEWSTATEGENERATOR"})["value"],
         "__EVENTVALIDATION":    soup.find("input", {"name": "__EVENTVALIDATION"})["value"],
     }
+    return fields, url
 
 
 def parse_slots(html: str, limit: int = 5) -> list[dict]:
@@ -179,7 +184,7 @@ def buscar_horarios(req: BuscarRequest):
     conv = CONVENIO_MAP.get(req.convenio.lower().strip(), "99999")
 
     try:
-        viewstate = get_viewstate()
+        viewstate, form_url = get_viewstate(req.agenda)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao acessar medicoagora: {e}")
 
@@ -193,8 +198,9 @@ def buscar_horarios(req: BuscarRequest):
     }
 
     try:
-        resp = session.post(FORM_URL, data=form_data, timeout=20)
-        resp.raise_for_status()
+        resp = session.post(form_url, data=form_data, timeout=20)
+        # Não usa raise_for_status() — medicoagora pode retornar 500
+        # mas ainda assim entregar o HTML com os resultados
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erro ao buscar horários: {e}")
 
