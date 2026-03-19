@@ -249,6 +249,19 @@ def reservar_horario(req: ReservarRequest):
 @app.post("/clinicareis/agendar")
 def confirmar_agendamento(req: AgendarRequest):
     """Confirma o agendamento definitivo com todos os dados do paciente."""
+    # Pré-reserva automática se codReserva não foi informado
+    cod_reserva = req.codReserva or ""
+    if not cod_reserva:
+        reserva = ws_call("wsPostReservaHorario", {
+            "ns":     NS,
+            "agenda": req.agenda,
+            "data":   req.data,
+            "hora":   req.hora,
+        })
+        if reserva.get("StatusCod", -1) != 0:
+            return {"ok": False, "mensagem": f"Falha ao pré-reservar horário: {reserva.get('Mensagem', '')}"}
+        cod_reserva = reserva.get("Mensagem", "")
+
     resultado = ws_call("wsPostEfetivaAgendamento", {
         "ns":               NS,
         "agenda":           req.agenda,
@@ -261,7 +274,7 @@ def confirmar_agendamento(req: AgendarRequest):
         "paciEmail":        req.paciEmail,
         "paciDtNasc":       req.paciDtNasc,
         "codConvenio":      req.codConvenio,
-        "codReserva":       req.codReserva or "",
+        "codReserva":       cod_reserva,
         "clinicaNome":      "Clínica Reis",
         "clinicaEnd":       "Av. Constantino Nery, 3010, Manaus - AM",
         "clinicaFones":     "(92) 98160-7756",
