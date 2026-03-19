@@ -40,11 +40,11 @@ FORM_URL   = f"{BASE_URL}/agndonline.aspx?ns={NS}&tema=padrao"
 
 # Códigos de especialidade (valor real do <select> cbxEspecialidade na página)
 ESPECIALIDADE_MAP = {
-    "anestesiologista":   "225151_12",
+    "anestesiologista":   "225151_10",
     "cirurgiao plastico": "225235_11",
     "cirurgia plastica":  "225235_11",
-    "proctologista":      "225280_10",
-    "proctologia":        "225280_10",
+    "proctologista":      "225280_12",
+    "proctologia":        "225280_12",
 }
 
 # Códigos de convênio (valor real do <select> cbxConvenio na página)
@@ -68,9 +68,10 @@ session.headers.update(HEADERS)
 # ─── Modelos de Entrada ───────────────────────────────────────────────────────
 
 class BuscarRequest(BaseModel):
-    especialidade: str
     convenio: str
-    agenda: str | None = None   # opcional: filtra por agenda específica (ex: "Teste")
+    especialidade: str | None = None   # opcional: filtra por especialidade
+    nome_medico: str | None = None     # opcional: filtra pelo nome do profissional
+    agenda: str | None = None          # opcional: filtra por agenda específica
 
 class ReservarRequest(BaseModel):
     agenda: str
@@ -180,7 +181,7 @@ def ws_call(method_name: str, payload: dict) -> dict:
 @app.post("/clinicareis/buscar")
 def buscar_horarios(req: BuscarRequest):
     """Busca horários disponíveis via form POST + parse HTML."""
-    esp  = ESPECIALIDADE_MAP.get(req.especialidade.lower().strip(), "0")
+    esp  = ESPECIALIDADE_MAP.get(req.especialidade.lower().strip(), "0") if req.especialidade else "0"
     conv = CONVENIO_MAP.get(req.convenio.lower().strip(), "99999")
 
     try:
@@ -192,7 +193,7 @@ def buscar_horarios(req: BuscarRequest):
         **viewstate,
         "cbxEspecialidade":    esp,
         "cbxConvenio":         conv,
-        "txtNomeMedico":       "",
+        "txtNomeMedico":       req.nome_medico or "",
         "txtDataMinima":       "",
         "btnBuscarProfissionais": "Buscar",
     }
@@ -293,6 +294,39 @@ def cancelar_agendamento(req: CancelarRequest):
     if status == 0:
         return {"ok": True,  "mensagem": f"Cancelado. {msg}"}
     return {"ok": False, "mensagem": f"Falha ao cancelar: {msg} (código {status})"}
+
+
+@app.post("/debug/buscar")
+def debug_buscar(req: BuscarRequest):
+    """Debug: retorna HTML bruto e parâmetros usados para inspecionar o scraping."""
+    esp  = ESPECIALIDADE_MAP.get(req.especialidade.lower().strip(), "0") if req.especialidade else "0"
+    conv = CONVENIO_MAP.get(req.convenio.lower().strip(), "99999")
+
+    viewstate, form_url = get_viewstate(req.agenda)
+
+    form_data = {
+        **viewstate,
+        "cbxEspecialidade":    esp,
+        "cbxConvenio":         conv,
+        "txtNomeMedico":       req.nome_medico or "",
+        "txtDataMinima":       "",
+        "btnBuscarProfissionais": "Buscar",
+    }
+
+    resp = session.post(form_url, data=form_data, timeout=20)
+
+    soup = BeautifulSoup(resp.text, "lxml")
+    tabelas = [str(t) for t in soup.select("table.table-horarios")]
+
+    return {
+        "esp_code": esp,
+        "conv_code": conv,
+        "form_url": form_url,
+        "status_code": resp.status_code,
+        "tabelas_encontradas": len(tabelas),
+        "tabelas_html": tabelas,
+        "html_snippet": resp.text[5000:8000],
+    }
 
 
 @app.get("/health")
