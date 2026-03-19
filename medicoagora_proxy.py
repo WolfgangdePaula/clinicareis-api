@@ -80,7 +80,7 @@ class ReservarRequest(BaseModel):
     ns: str | None = None
 
 class AgendarRequest(BaseModel):
-    codReserva: str
+    codReserva: str | None = None
     agenda: str
     data: str
     hora: str
@@ -261,7 +261,7 @@ def confirmar_agendamento(req: AgendarRequest):
         "paciEmail":        req.paciEmail,
         "paciDtNasc":       req.paciDtNasc,
         "codConvenio":      req.codConvenio,
-        "codReserva":       req.codReserva,
+        "codReserva":       req.codReserva or "",
         "clinicaNome":      "Clínica Reis",
         "clinicaEnd":       "Av. Constantino Nery, 3010, Manaus - AM",
         "clinicaFones":     "(92) 98160-7756",
