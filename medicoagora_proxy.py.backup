@@ -49,12 +49,9 @@ ESPECIALIDADE_MAP = {
 
 # Códigos de convênio (valor real do <select> cbxConvenio na página)
 CONVENIO_MAP = {
-    "particular":    "99999",
-    "bradesco":      "5711",
-    "mediservice":   "333689",
-    "postal saude":  "419133",
-    "postal saúde":  "419133",
-    "postal":        "419133",
+    "particular":  "99999",
+    "bradesco":    "5711",
+    "mediservice": "333689",
 }
 
 HEADERS = {
